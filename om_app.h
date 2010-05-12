@@ -8,6 +8,9 @@
 #ifndef _OMEGA_MAP_H_
 #define _OMEGA_MAP_H_
 
+
+// INCLUDES
+
 #include "myutils.h"
 #include "lotri_matrix.h"
 #include <string>
@@ -20,8 +23,13 @@
 using namespace myutils;
 using namespace std;
 
+
+// INTERFACE
+
+/*
+The observation matrix associated with an omega block.
+*/
 class oMatrix {
-	/* observation matrix associated with an omega block */
 public:
 	LowerTriangularMatrix< Vector<double> > *gamma;	/* probability of observing pair (i,j) for k haplotypes */
 	LowerTriangularMatrix< Vector<double> > *gamma2;/* probability of observing pair (i,j) for k haplotypes under indel model */
@@ -30,37 +38,64 @@ public:
 	double mu, kappa, omega;						/* parameters of the mutation rate matrix */
 };
 
+/*
+An omega block.
+
+Defines the continguous sites that share the same omega.
+*/
 class oBlock {
-	/* omega block: defines the continguous sites that share the same omega */
 public:
 	int start, end;
 	oBlock *_5prime, *_3prime;
 	oMatrix *oMat;
 };
 
+/*
+A recombination block.
+
+Defines the contiguous sites that share the same rho
+*/
 class rBlock {
-	/* recombination block: defines the contiguous sites that share the same rho */
 public:
 	int start, end;
 	rBlock *_5prime, *_3prime;
 	double rho;
 };
 
-/* oEvent and oEventStart are derived from base classes called oEventBinary and oEventStartBinary
-   so that istream& operator>>() and ostream& operator<<() functions can be overloaded separately for
-   each type. When it comes to reading/writing, the class can then be typecast when the <</>> operator
-   is called in order to specify which version of the overloaded function to call					*/
+/*
+Records accepted and rejected moves in the MCMC.
+
+oEvent and oEventStart are derived from base classes called oEventBinary and
+oEventStartBinary so that istream& operator>>() and ostream& operator<<()
+functions can be overloaded separately for each type. When it comes to
+reading/writing, the class can then be typecast when the <</>> operator is
+called in order to specify which version of the overloaded function to call ls
+*/
+
 class oEventBinary {
-	/* records accepted and rejected moves in the MCMC */
 public:
-	enum types {DEFAULT, START, CHANGE_OBLOCK, EXTEND_OBLOCK, SPLIT_OBLOCK, MERGE_OBLOCK,
-	            CHANGE_MU, CHANGE_KAPPA, CHANGE_RBLOCK, EXTEND_RBLOCK, SPLIT_RBLOCK, MERGE_RBLOCK, CHANGE_INDEL, CHANGE_ORDER
-	           } type;
+	enum types {
+		DEFAULT,
+		START,
+		CHANGE_OBLOCK,
+		EXTEND_OBLOCK,
+		SPLIT_OBLOCK,
+		MERGE_OBLOCK,
+	   CHANGE_MU,
+		CHANGE_KAPPA,
+		CHANGE_RBLOCK,
+		EXTEND_RBLOCK,
+		SPLIT_RBLOCK,
+		MERGE_RBLOCK,
+		CHANGE_INDEL,
+		CHANGE_ORDER
+	   } type;
 	bool accepted;
 	double param[2];
 	double likelihood;
 	double alpha;
 };
+
 class oEvent : public oEventBinary {};
 
 class oEventStartBinary : public oEvent {
@@ -74,6 +109,7 @@ public:
 	Vector<double> omega;
 	Vector<double> rho;
 };
+
 class oEventStart : public oEventStartBinary {};
 
 class omegaMapBase {
@@ -257,8 +293,13 @@ public:	/* Member functions */
 	/**     MCMC routines     **/		/*    mcmc.cpp    */
 	/***************************/
 
+	// NOTE: changes made for omegamip
+	/*
 	omegaMap& go (Random &r, char* inifile);
 	omegaMap& go (int argc, char* argv[], Random &r, char* inifile);
+	*/
+	omegaMap& go();
+
 	omegaMap& debug();
 	omegaMap& propose();
 	omegaMap& redraw();
@@ -392,6 +433,19 @@ public:	/* Member functions */
 
 	Priors stringToEnumPriors (string &s);
 	double lnGAMMA (const double xx);
+	
+	// NOTE: MPI/MC^3 additions
+	int chain_cnt;
+	double chain_temp;
+	int proc_id;
+	int chain_id;
+	double chain_heat;
+
+	void initMpi ();
+	void setChainIdAndHeat (int new_chain_id);
+	bool acceptProposal (const double ln_alpha);
+	bool isMainProc ();
+	bool isMainChain ();
 };
 
 

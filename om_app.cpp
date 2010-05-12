@@ -5,11 +5,13 @@
 /*	www.danielwilson.me.uk			*/
 /************************************/
 
+#include "om_incl.h"
 #include "om_app.h"
 #include "controlwizard.h"
 #include "argumentwizard.h"
 #include <time.h>
 #include <sstream>
+#include <cmath>
 
 /***************************/
 /*  Housekeeping routines  */
@@ -210,6 +212,10 @@ omegaMap& omegaMap::initialize (int argc, char* argv[], char *inifile, Random &r
 		ran->setseed (seed);
 	}
 
+	// NOTE: modifications made for MPI/MC^3 version
+	// Call this here so it can mod RNG before it get's called later on
+	initMpi();
+		
 	// check whether constant or variable models have been chosen for omega and rho
 	for (i = 0; i < (int) omegaModel.length(); i++) {
 		omegaModel[i] = tolower (omegaModel[i]);
@@ -614,12 +620,18 @@ omegaMap& omegaMap::initialize (int argc, char* argv[], char *inifile, Random &r
 	if (local_pi.size() == 0) {
 		// estimate from data
 		local_pi = vector<double> (61, 0.0);
-		cout << "Estimating codon usage from data:" << endl;
+		if (isMainProc()){
+			cout << "Estimating codon usage from data:" << endl;
+		}
 		for (i = 0; i < 61; i++) {
 			local_pi[i] = obsPi[i];
-			cout << local_pi[i] << " ";
+			if (isMainProc()){
+				cout << local_pi[i] << " ";
+			}
 		}
-		cout << endl;
+		if (isMainProc()){
+			cout << endl;
+		}
 	} else if (local_pi.size() != 61) {
 		error ("omegaMap::initialize(): pi must be of length 61");
 	}
@@ -627,7 +639,9 @@ omegaMap& omegaMap::initialize (int argc, char* argv[], char *inifile, Random &r
 		if (local_piIndel == notSet) {
 			// estimate from data
 			local_piIndel = obsIndel[0];
-			cout << "Estimating indel frequency from the data: " << local_piIndel << endl;
+			if (isMainProc()){
+				cout << "Estimating indel frequency from the data: " << local_piIndel << endl;
+			}
 			if (local_piIndel <= 0.0) {
 				error ("omegaMap::initialize(): piindel was estimated to be negative. This is an internal error");
 			}
@@ -804,8 +818,10 @@ omegaMap& omegaMap::initialize (int argc, char* argv[], char *inifile, Random &r
 	size_t memSize = 2 * norders * (1 + (n - 1) * (1 + L * (1 + (n + 2) / 2) ) );
 	memSize += 2 * L * (1830 * n + 3785);
 	memSize *= sizeof (double);
-	cout << "Required memory size is approximately " << (double) (memSize) / 1.e6 << " Megabytes" << endl;
-
+	if (isMainProc()){
+		cout << "Required memory size is approximately " << (double) (memSize) / 1.e6 << " Megabytes" << endl;
+	}
+	
 	oBlock default_oBlock;
 	default_oBlock.start = default_oBlock.end = -1;
 	default_oBlock._5prime = default_oBlock._3prime = 0;
@@ -1177,8 +1193,10 @@ omegaMap& omegaMap::initialize (int argc, char* argv[], char *inifile, Random &r
 		}
 	}
 
-	memTime = (double) (clock() - start) / CLOCKS_PER_SEC;
-	cout << "\rMemory allocation took " << memTime << " seconds." << endl;
+	if (isMainProc()) {
+		memTime = (double) (clock() - start) / CLOCKS_PER_SEC;
+		cout << "\rMemory allocation took " << memTime << " seconds." << endl;
+	}
 
 	/***************************/
 	/* Initialize likelihoods  */
@@ -1193,10 +1211,141 @@ omegaMap& omegaMap::initialize (int argc, char* argv[], char *inifile, Random &r
 	eventStart.likelihood = oldLikelihood;
 	alphaMargin = pos + 1;
 	betaMargin = pos - 1;
-
+	
 	return *this;
 }
 
+
+/**
+Do the initialisation required for MPI-enabled MC^3.
+
+For MPI and MC^3 , we need several variables to be set correctly. Where N
+processes are being run:
+
+* chain_cnt: the number of chains being run
+* chain_temp: the scaling factor, being greater than 0 & the same for all chains
+* proc_id: the id of this process, being 0 to N-1 inclusive
+* chain_id: the metropolis rank of this chain, being 1 to N inclusive
+* chain_heat: the scaling factor for this chain, calculated from chain_id and temp
+
+*/
+void omegaMap::initMpi () {
+	// Main:
+#ifdef MPI_ENABLED
+	int error_code;
+	
+	// TODO: set these in config file
+	// NOTE: these values are mrbayes ones
+	#define DEFAULT_CHAIN_CNT   4
+	#define DEFAULT_TEMP        0.5
+	
+	// get number of chains
+	int num_procs;
+	error_code = MPI_Comm_size (MPI_COMM_WORLD, &num_procs);
+	assert (error_code == MPI_SUCCESS);
+	chain_cnt = MIN(DEFAULT_CHAIN_CNT, num_procs);
+	
+	// set temperature
+	chain_temp = DEFAULT_TEMP;
+	
+	// get processor id and set initial chain id, which should set chain_heat
+	int ret_proc_id;
+	error_code = MPI_Comm_rank (MPI_COMM_WORLD, &ret_proc_id);
+	assert (error_code == MPI_SUCCESS);
+	proc_id = ret_proc_id;
+	setChainIdAndHeat(ret_proc_id + 1);
+	
+	// set seed for RNG, so all procs have a different but deterministic seed
+	int seed = (*ran).getseed() - proc_id;
+	(*ran).setseed (seed);
+
+#else	
+	chain_cnt = 1;
+	chain_temp = 1.0;
+	proc_id = 0;
+	chain_id = 1;
+	chain_heat = 1.0;
+	
+#endif
+
+	// Postconditions:
+	std::cout << "Processor id " << proc_id << " (number " << proc_id + 1 <<
+		" of " << chain_cnt <<
+		") set with temp " << chain_temp << " and chain id " << chain_id <<
+		" and heat " << chain_heat << " ..." << endl;
+	
+	assert (0 < chain_cnt);
+	assert (0.0 < chain_temp);
+	assert ((0 <= proc_id) and (proc_id < chain_cnt));
+	assert ((1 <= chain_id) and (chain_id <= chain_cnt));
+	assert ((0.0 < chain_heat) and (chain_heat <= 1.0));
+}
+
+
+/*
+Set the id/rank (and consequently the heating )of this chain.
+
+In MC^3, heating depends upon the rank of the chain
+*/
+void omegaMap::setChainIdAndHeat (int new_chain_id) {
+	// Preconditions:
+	//PRINTVAR(new_chain_id);
+	//PRINTVAR(chain_cnt);
+	assert ((1 <= new_chain_id) and (new_chain_id <= chain_cnt));
+	
+	// Main:
+	chain_id = new_chain_id;
+	if (chain_id == 1) {
+		chain_heat = 1.0;
+	} else {
+		chain_heat = 1.0 / (1.0 + (chain_temp * (chain_id - 1)));
+	}
+	
+	// Postconditions:
+	assert ((1 <= chain_id) and (chain_id <= chain_cnt));
+}
+
+
+/*
+Given a log likelihood, decide whether it is accepted, based on chain heat.
+*/
+bool omegaMap::acceptProposal (const double ln_alpha) {
+	// Main:
+	if (0.0 <= ln_alpha) {
+		return true;
+	}
+	
+	// otherwise adjust for heat
+	double ln_like;
+	if (chain_id == 1) {
+		ln_like = ln_alpha;
+	} else {
+		ln_like = std::pow (ln_alpha, chain_heat);
+	}
+	// random chance of selecting it
+	double rand_uni = log (ran->U());
+	
+	// Postconditions & return:
+	return rand_uni <= ln_like;
+}
+
+
+/*
+Is this the main (first ranked) MPI process?
+*/
+bool omegaMap::isMainProc () {
+	return (proc_id == 0);
+}
+
+
+/*
+Is this the main (unheated) MCMC chain?
+*/
+bool omegaMap::isMainChain () {
+	return (chain_id == 1);
+}
+	
+	
 omegaMap::~omegaMap() {
 	if (initialized) {
 		int ord, k, pos;

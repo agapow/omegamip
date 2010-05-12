@@ -16,8 +16,10 @@ int main (int argc, char* argv[]) {
 		error ("SYNTAX: ini-filename [options...]");
 	}
 
+	int proc_id = 0;
+	
 #ifdef MPI_ENABLED
-	int proc_id, error_code, num_procs;
+	int error_code, num_procs;
 
 	// MSG ("Attempting MPI initialisation ...");
 	error_code = MPI_Init (&argc, &argv);
@@ -25,33 +27,38 @@ int main (int argc, char* argv[]) {
 		MSG ("Problem initializing MPI");
 		exit (1);
 	}
+	
 	error_code = MPI_Comm_size (MPI_COMM_WORLD, &num_procs);
 	if (error_code != MPI_SUCCESS) {
 		MSG ("Problem getting the number of processors");
 		exit (1);
 	}
-	// PRINTVAR (num_procs);
+
 	error_code = MPI_Comm_rank (MPI_COMM_WORLD, &proc_id);
 	if (error_code != MPI_SUCCESS) {
 		MSG ("Problem getting processors rank");
 		exit (1);
 	}
-	// PRINTVAR (proc_id);
+
 #endif
 
-	MSG ("Creating application ...");
+	if (proc_id == 1) MSG ("Creating application ...");
 	omegaMap app;
 	Random rng;
-	MSG ("Initialising application (setting params and allocating memory) ...");
+	if (proc_id == 1) MSG ("Initialising application (setting params and allocating memory) ...");
 	app.initialize (argc - 1, argv + 1, argv[1], rng);
-	MSG ("Starting run ...");
+	if (proc_id == 1) MSG ("Starting run ...");
 	app.go();
-	MSG ("Finished.");
+	if (proc_id == 1) MSG ("Finished.");
 
 #ifdef MPI_ENABLED
+	MPI_Barrier(MPI_COMM_WORLD);
 	MPI_Finalize();
 #	endif
 
+	MSG ("Really finished.");
+	PRINTVAR(proc_id);
+	
 	return 0;
 }
 

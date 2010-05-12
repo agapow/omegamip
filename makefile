@@ -7,11 +7,11 @@ MPI = 1
 DEBUG = 1
 
 # set to non-zero for the profiled version
-PROFILE = 1
+PROFILE = 0
 
 # set flags
 ifneq (${DEBUG},0)
-	CXXFLAGS = -ggdb -DNDEBUG
+	CXXFLAGS = -ggdb -DOM_DEBUG
 else
 	CXXFLAGS = -Wall -Wno-deprecated -O3
 endif

@@ -26,61 +26,75 @@
 omegaMap& omegaMap::go() {
 	//initialize (argc, argv, inifile, r);
 
-#ifdef MPI_ENABLED
-	cout << "Running as MPI." << endl;
-	PRINTVAR (argc);
+	std::cout << "Processor id " << proc_id << " (chain " << chain_id <<
+		") reporting in." << endl;
+		
+	bool no_datafile = (datafile == "");
+	bool writing_to_outfile = (outfile != "");
+	
+	std::clock_t start = std::clock();
+	
+	if (isMainProc()) {
+		if (writing_to_outfile) {
+			ofstream out(outfile.c_str());
+			headings (out);
+			iter = -1;
+			record (out, (oEvent&) eventStart);
+			if (coutput) {
+				cout << "Completed 0 of " << niter << " iterations";
+			}
+			out.close();
+		}
+	}
+	
+	for (iter = 0; iter < niter; iter++) {
+		propose();
+		
+#ifdef _DEBUG
+		debug();
 #endif
 
-	bool no_datafile = (datafile == "");
-	std::clock_t start = std::clock();
-	if (outfile != "") {
-		ofstream out (outfile.c_str() );
-		headings (out);
-		iter = -1;
-		record (out, (oEvent&) eventStart);
-		if (coutput) {
-			cout << "Completed 0 of " << niter << " iterations";
-		}
-		for (iter = 0; iter < niter; iter++) {
-			propose();
-#ifdef _DEBUG
-			debug();
-#endif
-			if ( (iter + 1) % thinning == 0) {
+		if (isMainChain()) {
+			if ((iter + 1) % thinning == 0) {
+				ofstream out(outfile.c_str(), ios::app);
 				record (out, event[iter]);
-			}
-			if (no_datafile) {
-				--event.element;
-			}
-			if (coutput) {
-				cout << "\rCompleted " << iter + 1 << " of " << niter << " iterations";
+				out.close();
 			}
 		}
-		out.close();
-	} else {
-		for (iter = 0; iter < niter; iter++) {
-			propose();
-			if (no_datafile) {
-				--event.element;
-			}
+		
+		if (no_datafile) {
+			--event.element;
+		}
+		
+		if (isMainProc()) {
 			if (coutput) {
 				cout << "\rCompleted " << iter + 1 << " of " << niter << " iterations";
 			}
 		}
 	}
+
 	// NOTE:: this was returning negative values until I changed call
 	// Maybe there was overflow going on?
-	compTime = ( (double) (std::clock() - start) ) / (CLOCKS_PER_SEC * 60.0);
-	cout << "\rCompleted " << niter << " of " << niter << " in " << compTime <<
-	     " minutes" << endl;
-	if (!no_datafile) {
-		ofstream data (datafile.c_str() );
-		data << (omegaMapBase&) *this;
-		data.close();
+	if (isMainProc()) {
+		compTime = ((double) (std::clock() - start) ) / (CLOCKS_PER_SEC * 60.0);
+		cout << "\rCompleted " << niter << " of " << niter << " in " << compTime <<
+			  " minutes" << endl;
 	}
-	if (no_datafile) {
-		event.element += niter;
+
+	MPI_MSG("and here");
+	
+	if (isMainChain()) {
+		if (no_datafile) {
+			event.element += niter;
+		} else {
+			ofstream data (datafile.c_str());
+			data << (omegaMapBase&) *this;
+			data.close();
+		}
 	}
+
+	MPI_MSG("and finally here");
+
 	return *this;
 }
 
@@ -245,8 +259,9 @@ omegaMap& omegaMap::propose_change_oBlock() {
 	//lnAlpha = newLikelihood - oldLikelihood +log(oB->oMat->omega) - log(oMatTemp[0]->omega); // UNIFORM
 	//lnAlpha = 0.0;
 	event[iter].alpha = lnAlpha;
-	U = log (ran->U() );
-	if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+	U = log (ran->U());
+	/* if (lnAlpha >= 0.0 || lnAlpha >= U) { */
+	if (acceptProposal (lnAlpha)) {
 		alphaMargin = betaMargin = (goForward) ? oB->end + 1 : oB->start - 1;
 		oldLikelihood = newLikelihood;
 		event[iter].accepted = true;
@@ -402,7 +417,8 @@ omegaMap& omegaMap::propose_extend_oBlock() {
 	double lnAlpha = newLikelihood - oldLikelihood;
 	double U = log (ran->U() );
 	event[iter].alpha = lnAlpha;
-	if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+	//if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+	if (acceptProposal (lnAlpha)) {
 		alphaMargin = betaMargin = (goForward) ? rightUpdate + 1 : leftUpdate - 1;
 		oldLikelihood = newLikelihood;
 		event[iter].accepted = true;
@@ -589,7 +605,8 @@ omegaMap& omegaMap::propose_split_oBlock() {
 	                       + lnRatioPriors + log (Hastings * Jacobian);
 	U = log (ran->U() );
 	event[iter].alpha = lnAlpha;
-	if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+	// if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+	if (acceptProposal (lnAlpha)) {
 		alphaMargin = betaMargin = (goForward) ? rightUpdate + 1 : leftUpdate - 1;
 		oldLikelihood = newLikelihood;
 		++nblocks;
@@ -717,7 +734,8 @@ omegaMap& omegaMap::propose_merge_oBlock() {
 	                       + lnRatioPriors + log (Hastings * Jacobian);
 	event[iter].alpha = lnAlpha;
 	U = log (ran->U() );
-	if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+//	if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+	if (acceptProposal (lnAlpha)) {
 		alphaMargin = betaMargin = (goForward) ? rightUpdate + 1 : leftUpdate - 1;
 		oldLikelihood = newLikelihood;
 		--nblocks;
@@ -836,7 +854,8 @@ omegaMap& omegaMap::propose_change_rBlock() {
 	//lnAlpha = 0.0;
 	event[iter].alpha = lnAlpha;
 	U = log (ran->U() );
-	if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+	//if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+	if (acceptProposal (lnAlpha)) {
 		alphaMargin = betaMargin = (goForward) ? rightUpdate + 1 : leftUpdate - 1;
 		oldLikelihood = newLikelihood;
 		event[iter].accepted = true;
@@ -994,7 +1013,8 @@ omegaMap& omegaMap::propose_extend_rBlock() {
 	double lnAlpha = newLikelihood - oldLikelihood;
 	double U = log (ran->U() );
 	event[iter].alpha = lnAlpha;
-	if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+	// if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+	if (acceptProposal (lnAlpha)) {
 		alphaMargin = betaMargin = (goForward) ? rightUpdate + 1 : leftUpdate - 1;
 		oldLikelihood = newLikelihood;
 		event[iter].accepted = true;
@@ -1181,7 +1201,8 @@ omegaMap& omegaMap::propose_split_rBlock() {
 	                       + lnRatioPriors + log (Hastings * Jacobian);
 	U = log (ran->U() );
 	event[iter].alpha = lnAlpha;
-	if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+	//if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+	if (acceptProposal (lnAlpha)) {
 		alphaMargin = betaMargin = (goForward) ? rightUpdate + 1 : leftUpdate - 1;
 		oldLikelihood = newLikelihood;
 		++nrblocks;
@@ -1309,7 +1330,8 @@ omegaMap& omegaMap::propose_merge_rBlock() {
 	                       + lnRatioPriors + log (Hastings * Jacobian);
 	event[iter].alpha = lnAlpha;
 	U = log (ran->U() );
-	if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+	// if (lnAlpha >= 0.0 || lnAlpha >= U) { /* then accept */
+	if (acceptProposal (lnAlpha)) {
 		alphaMargin = betaMargin = (goForward) ? rightUpdate + 1 : leftUpdate - 1;
 		oldLikelihood = newLikelihood;
 		--nrblocks;
@@ -1383,7 +1405,8 @@ omegaMap& omegaMap::propose_change_mu() {
 	//	log(oMatTemp[0]->mu) - muPrior*(muPrime - oMatTemp[0]->mu);
 	//lnAlpha = newLikelihood - oldLikelihood + log(muPrime) - log(oMatTemp[0]->mu); // UNIFORM
 	event[iter].alpha = lnAlpha;
-	if (lnAlpha >= 0.0 || lnAlpha >= log (ran->U() ) ) { /* then accept */
+	//if (lnAlpha >= 0.0 || lnAlpha >= log (ran->U() ) ) { /* then accept */
+	if (acceptProposal (lnAlpha)) {
 		alphaMargin = betaMargin = (goForward) ? L - 1 : 0;
 		oldLikelihood = newLikelihood;
 		event[iter].accepted = true;
@@ -1445,7 +1468,8 @@ omegaMap& omegaMap::propose_change_kappa() {
 	//	log(oMatTemp[0]->kappa) - kappaPrior*(kappaPrime - oMatTemp[0]->kappa);
 	//lnAlpha = newLikelihood - oldLikelihood + log(kappaPrime) - log(oMatTemp[0]->kappa); // UNIFORM
 	event[iter].alpha = lnAlpha;
-	if (lnAlpha >= 0.0 || lnAlpha >= log (ran->U() ) ) { /* then accept */
+	//if (lnAlpha >= 0.0 || lnAlpha >= log (ran->U() ) ) { /* then accept */
+	if (acceptProposal (lnAlpha)) {
 		alphaMargin = betaMargin = (goForward) ? L - 1 : 0;
 		oldLikelihood = newLikelihood;
 		event[iter].accepted = true;
@@ -1583,7 +1607,8 @@ omegaMap& omegaMap::propose_change_indelLambda() {
 	//	log(oldIndelLambda) - indelLambdaPrior*(indelLambdaPrime - oldIndelLambda);
 	//lnAlpha = newLikelihood - oldLikelihood + log(indelLambdaPrime) - log(oldIndelLambda); // UNIFORM
 	event[iter].alpha = lnAlpha;
-	if (lnAlpha >= 0.0 || lnAlpha >= log (ran->U() ) ) { /* then accept */
+	//if (lnAlpha >= 0.0 || lnAlpha >= log (ran->U() ) ) { /* then accept */
+	if (acceptProposal (lnAlpha)) {
 		alphaMargin = betaMargin = (goForward) ? L - 1 : 0;
 		oldLikelihood = newLikelihood;
 		event[iter].accepted = true;
@@ -1652,7 +1677,8 @@ omegaMap& omegaMap::propose_change_order() {
 	event[iter].likelihood = newLikelihood;
 	lnAlpha = newLikelihood - oldLikelihood;
 	event[iter].alpha = lnAlpha;
-	if (lnAlpha >= 0.0 || lnAlpha >= log (ran->U() ) ) { /* then accept */
+	//if (lnAlpha >= 0.0 || lnAlpha >= log (ran->U() ) ) { /* then accept */
+	if (acceptProposal (lnAlpha)) {
 		alphaMargin = betaMargin = (goForward) ? L - 1 : 0;
 		oldLikelihood = newLikelihood;
 		event[iter].accepted = true;
