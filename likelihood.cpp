@@ -5,7 +5,9 @@
 /*	www.danielwilson.me.uk				*/
 /****************************************/
 
+#include "om_incl.h"
 #include "om_app.h"
+#include "obsmatrix.h"
 #include <math.h>
 #include <limits>
 
@@ -93,7 +95,7 @@ double omegaMapBase::thetaS() {
 /***************************/
 /*   Likelihood routines   */
 /***************************/
-omegaMap& omegaMap::diagonalizeMatrix (oMatrix &oM, const double mu, const double kappa, const double omega) {
+omegaMap& omegaMap::diagonalizeMatrix (ObsMatrix &oM, const double mu, const double kappa, const double omega) {
 #ifdef _TESTPRIOR
 	oM.mu = mu;
 	oM.kappa = kappa;
@@ -426,7 +428,7 @@ double omegaMap::mutProb (int site, int nhaps, int i, int j) {
 		warning ("omegaMap::mutProb(): i must be less than maxCodon");
 	}
 #endif
-	oMatrix &oM = * (block[site]->oMat);
+	ObsMatrix &oM = * (block[site]->oMat);
 	bool changed = false;
 	if (!indel[site]) {
 		double &pr = (*oM.gamma) [i][j][nhaps];
@@ -471,6 +473,9 @@ double omegaMap::mutProb (int site, int nhaps, int i, int j) {
 
 /* updates alpha from _5prime to _3prime inclusive */
 omegaMap& omegaMap::forward (int _5prime, int _3prime) {
+	//PRINTVAR(_5prime);
+	//PRINTVAR(_3prime);
+	
 #ifdef _TESTPRIOR
 	return *this;
 #endif
@@ -495,6 +500,7 @@ omegaMap& omegaMap::forward (int _5prime, int _3prime) {
 					OneMinusP = 1.0 - P;
 					lnOneMinusP = log (OneMinusP);
 				}
+
 				alpha[ord][k][pos][k] = 0.0; /* this is the sum of elements [0]..[k-1] */
 				if (pos == 0) {
 					for (x = 0; x < k; x++) {
@@ -526,7 +532,7 @@ omegaMap& omegaMap::forward (int _5prime, int _3prime) {
 						}
 						if (P >= 0.5) {
 							alpha[ord][k][pos][x] = log (mutProb (pos, k, i, j) ) + lnP + alpha[ord][k][pos-1][x]
-							                        + log (1.0 + exp (lnOneMinusP - lnP + alpha[ord][k][pos-1][k] - alpha[ord][k][pos-1][x] - lnk) );
+							   + log (1.0 + exp (lnOneMinusP - lnP + alpha[ord][k][pos-1][k] - alpha[ord][k][pos-1][x] - lnk) );
 							diff = alpha[ord][k][pos][x] - alpha[ord][k][pos][k];
 							if (x == 0) {
 								alpha[ord][k][pos][k] = alpha[ord][k][pos][x];
@@ -706,7 +712,7 @@ double omegaMap::star_likelihood() {
 	int pos, hap, anc, i, j, k;
 	double margLik, diff;
 	for (pos = 0; pos < L; pos++) {
-		oMatrix &oM = * (block[pos]->oMat);
+		ObsMatrix &oM = * (block[pos]->oMat);
 		if (!indel[pos]) {
 			for (anc = 0; anc < 61; anc++) {
 				margLik = log (pi[anc]);

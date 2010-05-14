@@ -26,7 +26,7 @@ omegaMapBase::omegaMapBase() {
 omegaMap::omegaMap() {
 	ran = NULL;
 	omegaVersion = "omegaMap0.5";
-	initialized = 0;
+	initialized = false;
 	baseToInt['T'] = 1;
 	baseToInt['U'] = baseToInt['T'];
 	baseToInt['C'] = 2;
@@ -836,27 +836,32 @@ omegaMap& omegaMap::initialize (int argc, char* argv[], char *inifile, Random &r
 	_rblock = Vector<rBlock> (L - 1, default_rBlock);
 	rblock = Vector<rBlock*> (L - 1, 0);
 
-	oMatrix default_oMatrix;
-	Vector<double> default_oMatrix_gamma_Vector = Vector<double> (n, -1.0);
-	default_oMatrix.gamma = 0;
-	default_oMatrix.gamma2 = 0;
-	default_oMatrix.R = Matrix<double> (61, 61);
-	default_oMatrix.lambda = Vector<double> (61);
-	default_oMatrix.mu = default_oMatrix.kappa = default_oMatrix.omega = 0.0;
+	ObsMatrix default_obsmatrix;
+	Vector<double> default_obsmatrix_gamma_Vector = Vector<double> (n, -1.0);
+	default_obsmatrix.gamma = NULL;
+	default_obsmatrix.gamma2 = NULL;
+	default_obsmatrix.R = Matrix<double> (61, 61);
+	default_obsmatrix.lambda = Vector<double> (61);
+	default_obsmatrix.mu = default_obsmatrix.kappa = default_obsmatrix.omega = 0.0;
 	pamlWork = Matrix<double> (61, 61);
 	for (i = 0; i < L; i++) {
-		_block[i].oMat = new oMatrix (default_oMatrix);
-		_block[i].oMat->gamma = new LowerTriangularMatrix< Vector<double> > (61, default_oMatrix_gamma_Vector);
+		_block[i].oMat = new ObsMatrix (default_obsmatrix);
+		_block[i].oMat->gamma = new LowerTriangularMatrix < Vector<double> >
+			(61, default_obsmatrix_gamma_Vector);
 		if (maxCodon == 62) {
-			_block[i].oMat->gamma2 = new LowerTriangularMatrix< Vector<double> > (62, default_oMatrix_gamma_Vector);
+			_block[i].oMat->gamma2 = new LowerTriangularMatrix < Vector<double> >
+				(62, default_obsmatrix_gamma_Vector);
 		}
 	}
-	oMatTemp = Vector<oMatrix*> (L, 0);
+	
+	oMatTemp = Vector<ObsMatrix*> (L, 0);
 	for (i = 0; i < L; i++) {
-		oMatTemp[i] = new oMatrix (default_oMatrix);
-		oMatTemp[i]->gamma = new LowerTriangularMatrix< Vector<double> > (61, default_oMatrix_gamma_Vector);
+		oMatTemp[i] = new ObsMatrix (default_obsmatrix);
+		oMatTemp[i]->gamma = new LowerTriangularMatrix < Vector<double> >
+			(61, default_obsmatrix_gamma_Vector);
 		if (maxCodon == 62) {
-			oMatTemp[i]->gamma2 = new LowerTriangularMatrix< Vector<double> > (62, default_oMatrix_gamma_Vector);
+			oMatTemp[i]->gamma2 = new LowerTriangularMatrix < Vector<double> >
+				(62, default_obsmatrix_gamma_Vector);
 		}
 	}
 
@@ -864,6 +869,10 @@ omegaMap& omegaMap::initialize (int argc, char* argv[], char *inifile, Random &r
 	/*    Initialize the Markov Chain    */
 	/*************************************/
 
+	// NOTE: PLUG params unused by recorded, need to shut valgrind up
+	eventStart.param[0] = eventStart.param[1] = 0.0;
+
+	
 	eventStart.nblocks = 0;
 	eventStart.nrblocks = 0;
 	if (muPrior == fixed) {
@@ -1157,16 +1166,24 @@ omegaMap& omegaMap::initialize (int argc, char* argv[], char *inifile, Random &r
 	}
 	int ord, k, x;
 	for (ord = 0; ord < norders; ord++) {
-		alpha[ord] = new double**[n-1];					// only elements 1..n-1 will be access-
+		
+		// NOTE: causing problems or false memeory violations, change for the moment
+		// only elements 1..n-1 will be accessible. This saves memory.
+		//alpha[ord] = new double**[n-1];					
+		alpha[ord] = new double**[n];					
 		if (!alpha[ord]) {
 			error ("omegaMap::initialize(): failed to allocate alpha[]");
 		}
-		--alpha[ord];									// ible. This saves memory.
-		beta[ord] = new double**[n-1];
+		//--alpha[ord];
+		
+		// only elements 1..n-1 will be accessible. This saves memory.
+		//beta[ord] = new double**[n-1];
+		beta[ord] = new double**[n];
 		if (!beta[ord]) {
 			error ("omegaMap::initialize(): failed to allocate beta[]");
 		}
-		--beta[ord];
+		//--beta[ord];
+		
 		for (k = 1; k < n; k++) {
 			alpha[ord][k] = new double*[L];
 			if (!alpha[ord][k]) {
@@ -1177,11 +1194,12 @@ omegaMap& omegaMap::initialize (int argc, char* argv[], char *inifile, Random &r
 				error ("omegaMap::initialize(): failed to allocate beta[][]");
 			}
 			for (pos = 0; pos < L; pos++) {
-				alpha[ord][k][pos] = new double[k+1];	// the kth element is the sum of the
+				// the kth element is the sum of the first k-1 elements
+				alpha[ord][k][pos] = new double[k+1];
 				if (!alpha[ord][k][pos]) {
 					error ("omegaMap::initialize(): failed to allocate alpha[][][]");
 				}
-				beta[ord][k][pos] = new double[k+1];	// first k-1 elements
+				beta[ord][k][pos] = new double[k+1];
 				if (!beta[ord][k][pos]) {
 					error ("omegaMap::initialize(): failed to allocate beta[][][]");
 				}
@@ -1211,6 +1229,8 @@ omegaMap& omegaMap::initialize (int argc, char* argv[], char *inifile, Random &r
 	eventStart.likelihood = oldLikelihood;
 	alphaMargin = pos + 1;
 	betaMargin = pos - 1;
+	
+	initialized = true;
 	
 	return *this;
 }
@@ -1269,10 +1289,12 @@ void omegaMap::initMpi () {
 #endif
 
 	// Postconditions:
+	/*
 	std::cout << "Processor id " << proc_id << " (number " << proc_id + 1 <<
 		" of " << chain_cnt <<
 		") set with temp " << chain_temp << " and chain id " << chain_id <<
 		" and heat " << chain_heat << " ..." << endl;
+	*/ 
 	
 	assert (0 < chain_cnt);
 	assert (0.0 < chain_temp);
@@ -1348,35 +1370,46 @@ bool omegaMap::isMainChain () {
 	
 omegaMap::~omegaMap() {
 	if (initialized) {
-		int ord, k, pos;
-		for (ord = 0; ord < norders; ord++) {
-			for (k = 1; k < n; k++) {
-				for (pos = 0; pos < L; pos++) {
+		// clean up alpha & beta
+		for (int ord = 0; ord < norders; ord++) {
+			for (int k = 1; k < n; k++) {
+				for (int pos = 0; pos < L; pos++) {
 					delete [] alpha[ord][k][pos];
 					delete [] beta[ord][k][pos];
 				}
 				delete [] alpha[ord][k];
 				delete [] beta[ord][k];
 			}
-			++alpha[ord];
+			// CHANGED: changed so trying to stop errors at destruction [PMA]
+			//++alpha[ord];
+			alpha[ord];
 			delete [] alpha[ord];
-			++beta[ord];
+			//++beta[ord];
+			beta[ord];
 			delete [] beta[ord];
 		}
-		alpha = beta = 0;
-		int i;
-		for (i = 0; i < L; i++) {
-			delete _block[i].oMat->gamma;
-			if (maxCodon == 62) {
-				delete _block[i].oMat->gamma2;
-			}
+		delete [] beta;
+		delete [] alpha;
+		alpha = beta = NULL;
+
+		// clean up _block
+		for (int i = 0; i < L; i++) {
+			//delete _block[i].oMat->gamma;
+			//_block[i].oMat->gamma = NULL;
+			//if (maxCodon == 62) {
+			//	delete _block[i].oMat->gamma2;
+			//	_block[i].oMat->gamma2 = NULL;
+			//}
 			delete _block[i].oMat;
 		}
-		for (i = 0; i < L; i++) {
-			delete oMatTemp[i]->gamma;
-			if (maxCodon == 62) {
-				delete oMatTemp[i]->gamma2;
-			}
+		// clean up oMatTemp
+		for (int i = 0; i < L; i++) {
+			//delete oMatTemp[i]->gamma;
+			//oMatTemp[i]->gamma = NULL;
+			//if (maxCodon == 62) {
+			//	delete oMatTemp[i]->gamma2;
+			//	oMatTemp[i]->gamma2 = NULL;
+			//}
 			delete oMatTemp[i];
 		}
 	}
@@ -1385,7 +1418,7 @@ omegaMap::~omegaMap() {
 /* Returns 0-60 for non-STOP codons, 61 for indels */
 omegaMap& omegaMap::dnaToCodons() {
 	n = dna.nseq;
-	L = (int) floor ( (double) dna.lseq / (double) 3.0);
+	L = (int) floor ((double) dna.lseq / (double) 3.0);
 	if (n <= 0) {
 		error ("omegaMap::dnaToCodons(): n must be positive");
 	}

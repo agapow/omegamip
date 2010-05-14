@@ -43,13 +43,20 @@ protected:
 public:
 	/*Default constructor*/
 	LowerTriangularMatrix() {
+		array = NULL;
 		initialized = 0;
 		initialize (0);
 	}
-	/*Constructor*/			LowerTriangularMatrix (int n) {
+	
+	/*Constructor*/
+	LowerTriangularMatrix (int n) {
+		array = NULL;
 		initialize (n);
 	}
-	/*Constructor*/			LowerTriangularMatrix (int n, T value) {
+	
+	/*Constructor*/
+	LowerTriangularMatrix (int n, T value) {
+		array = NULL;
 		initialize (n);
 		int i, j;
 		for (i = 0; i < n; i++)
@@ -57,10 +64,13 @@ public:
 				element[i][j] = value;
 			}
 	}
-	/*Destructor*/			~LowerTriangularMatrix() {
+	
+	/*Destructor*/
+	~LowerTriangularMatrix() {
 		delete[] array;
 		delete[] element;
 	}
+	
 	LowerTriangularMatrix<T>& initialize (int n) {
 		int i;
 		int size = n * (n + 1) / 2;
@@ -127,15 +137,18 @@ public:
 	}
 	void error (char* error_text) {
 		printf ("Run-time error in LowerTriangularMatrix::");
-		printf ("%s%\n", error_text);
+		printf ("%s\n", error_text);
 		printf ("Exiting to system...\n");
 		exit (13);
 	}
-	/*Copy constructor*/	LowerTriangularMatrix (const LowerTriangularMatrix<T> &mat)
-	/*	Copy constructor for the following cases:
-			LowerTriangularMatrix mat2(mat);
-			LowerTriangularMatrix mat2=mat;
-		and when LowerTriangularMatrix is returned from a function	*/
+	/*Copy constructor*/
+	LowerTriangularMatrix (const LowerTriangularMatrix<T> &mat)
+	/*
+	Copy constructor for the following cases:
+		LowerTriangularMatrix mat2(mat);
+		LowerTriangularMatrix mat2=mat;
+	and when LowerTriangularMatrix is returned from a function
+	*/
 	{
 		initialize (mat._n);
 		int i;
@@ -143,7 +156,8 @@ public:
 			array[i] = mat.array[i];
 		}
 	}
-	/*Assignment operator*/	LowerTriangularMatrix<T>& operator= (const LowerTriangularMatrix<T>& mat) {
+	/*Assignment operator*/
+	LowerTriangularMatrix<T>& operator= (const LowerTriangularMatrix<T>& mat) {
 		//if(this==mat)return *this;
 		resize (mat._n);
 		int i;
@@ -152,7 +166,8 @@ public:
 		}
 		return *this;
 	}
-	/*Subscript operator*/inline T* operator[] (int pos) {
+	/*Subscript operator*/
+	inline T* operator[] (int pos) {
 		return element[pos];
 	};
 	inline T& safe (int i, int j) {

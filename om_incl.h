@@ -39,10 +39,10 @@ om_incl.h: global includes and definitions
 	
 #else
 
-	#define NDEBUG          # switch off asserts
-	#define PRINTVAR(var)   # don't print vars
-	#define MSG(msg)        # don't print messages
-	#define MPI_MSG(msg)    # don't print messages
+	#define NDEBUG          /* switch off asserts */
+	#define PRINTVAR(var)   /* don't print vars */
+	#define MSG(msg)        /* don't print messages */
+	#define MPI_MSG(msg)    /* don't print messages */
 
 #endif // OM_DEBUG
 

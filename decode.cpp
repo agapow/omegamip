@@ -7,12 +7,13 @@
 
 #include <myutils.h>
 #include "decode.h"
+#include "obsmatrix.h"
 #include <fstream>
 #include <algorithm>
 #include <vector>
 #include <functional>
 #include <sstream>
-#include <controlwizard.h>
+#include "controlwizard.h"
 
 using namespace myutils;
 
@@ -177,20 +178,20 @@ omegaMapAnalyse& omegaMapAnalyse::recycle() {
 	_rblock = Vector<rBlock> (L - 1, default_rBlock);
 	rblock = Vector<rBlock*> (L - 1, 0);
 
-	oMatrix default_oMatrix;
-	Vector<double> default_oMatrix_gamma_Vector = Vector<double> (0);
-	default_oMatrix.gamma = 0;
-	default_oMatrix.gamma2 = 0;
-	default_oMatrix.R = Matrix<double> (0, 0);
-	default_oMatrix.lambda = Vector<double> (0);
-	default_oMatrix.mu = default_oMatrix.kappa = default_oMatrix.omega = 0.0;
+	ObsMatrix default_obsmatrix;
+	Vector<double> default_obsmatrix_gamma_Vector = Vector<double> (0);
+	default_obsmatrix.gamma = NULL;
+	default_obsmatrix.gamma2 = NULL;
+	default_obsmatrix.R = Matrix<double> (0, 0);
+	default_obsmatrix.lambda = Vector<double> (0);
+	default_obsmatrix.mu = default_obsmatrix.kappa = default_obsmatrix.omega = 0.0;
 	pamlWork = Matrix<double> (0, 0);
 	for (i = 0; i < L; i++) {
 		if (_block[i].oMat == NULL) {
-			_block[i].oMat = new oMatrix (default_oMatrix);
+			_block[i].oMat = new ObsMatrix (default_obsmatrix);
 		}
 	}
-	oMatTemp = Vector<oMatrix*> (0);
+	oMatTemp = Vector<ObsMatrix*> (0);
 
 	indelLambda = eventStart.indelLambda;
 

@@ -68,6 +68,7 @@ public:
 		}
 		in->close();
 		delete in;
+		
 		if (coutput) {
 			cout << "Read in " << nseq << " sequence" << endl;
 		}
@@ -141,6 +142,7 @@ public:
 			}
 		}
 		in->close();
+		delete in;
 
 		if (coutput) for (NSEQ = 0; NSEQ < nseq; NSEQ++) {
 				cout << label[NSEQ] << endl;

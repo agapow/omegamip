@@ -26,8 +26,8 @@
 omegaMap& omegaMap::go() {
 	//initialize (argc, argv, inifile, r);
 
-	std::cout << "Processor id " << proc_id << " (chain " << chain_id <<
-		") reporting in." << endl;
+	//std::cout << "Processor id " << proc_id << " (chain " << chain_id <<
+	//	") reporting in." << endl;
 		
 	bool no_datafile = (datafile == "");
 	bool writing_to_outfile = (outfile != "");
@@ -80,8 +80,6 @@ omegaMap& omegaMap::go() {
 		cout << "\rCompleted " << niter << " of " << niter << " in " << compTime <<
 			  " minutes" << endl;
 	}
-
-	MPI_MSG("and here");
 	
 	if (isMainChain()) {
 		if (no_datafile) {
@@ -92,8 +90,6 @@ omegaMap& omegaMap::go() {
 			data.close();
 		}
 	}
-
-	MPI_MSG("and finally here");
 
 	return *this;
 }
@@ -1608,11 +1604,12 @@ omegaMap& omegaMap::propose_change_indelLambda() {
 	//lnAlpha = newLikelihood - oldLikelihood + log(indelLambdaPrime) - log(oldIndelLambda); // UNIFORM
 	event[iter].alpha = lnAlpha;
 	//if (lnAlpha >= 0.0 || lnAlpha >= log (ran->U() ) ) { /* then accept */
+
 	if (acceptProposal (lnAlpha)) {
 		alphaMargin = betaMargin = (goForward) ? L - 1 : 0;
 		oldLikelihood = newLikelihood;
 		event[iter].accepted = true;
-	} else { /* else reject */
+	} else {
 		if (goForward) {
 			alphaMargin = 0;
 		} else {
@@ -1673,6 +1670,7 @@ omegaMap& omegaMap::propose_change_order() {
 		newLikelihood = likelihood (stickyDebugEval);
 		/******************************************/
 	}
+
 
 	event[iter].likelihood = newLikelihood;
 	lnAlpha = newLikelihood - oldLikelihood;

@@ -49,7 +49,7 @@ public:
 template <typename T>
 class Matrix {
 public:
-	/*Preserve public access for back-compatibility*/
+	/* Preserve public access for back-compatibility */
 	T *array;
 	T **element;
 
@@ -64,10 +64,14 @@ public:
 		initialized = 0;
 		initialize (0, 0);
 	}
-	/*Constructor*/			Matrix (int nrows, int ncols) {
+	
+	/*Constructor*/
+	Matrix (int nrows, int ncols) {
 		initialize (nrows, ncols);
 	}
-	/*Constructor*/			Matrix (int nrows, int ncols, T value) {
+	
+	/*Constructor*/
+	Matrix (int nrows, int ncols, T value) {
 		initialize (nrows, ncols);
 		int i, j;
 		for (i = 0; i < nrows; i++)
@@ -75,11 +79,16 @@ public:
 				element[i][j] = value;
 			}
 	}
-	/*Destructor*/			~Matrix() {
+	
+	/*Destructor*/
+	~Matrix() {
 		delete[] array;
 		delete[] element;
 	}
+	
 	Matrix<T>& initialize (int nrows, int ncols) {
+		array = NULL;
+		element = NULL;
 		int i;
 		array = new T[nrows*ncols];
 		if (!array) {
@@ -99,9 +108,9 @@ public:
 		initialized = 1;
 		return *this;
 	}
+	
 	/*All current data is lost when the Matrix is resized*/
 	Matrix<T>& resize (int nrows, int ncols) {
-		int i;
 		if (!initialized) {
 			return initialize (nrows, ncols);
 		}
@@ -121,7 +130,7 @@ public:
 		if (!element) {
 			error ("element allocation failure in Matrix::resize()");
 		}
-		for (i = 0; i < nrows; i++) {
+		for (int i = 0; i < nrows; i++) {
 			element[i] = & (array[i*ncols+0]);
 		}
 
@@ -129,18 +138,23 @@ public:
 		protected_ncols = ncols;
 		return *this;
 	}
+	
 	int nrows() {
 		return protected_nrows;
 	}
+	
 	int ncols() {
 		return protected_ncols;
 	}
+	
 	int nrows() const {
 		return protected_nrows;
 	}
+	
 	int ncols() const {
 		return protected_ncols;
 	}
+	
 	/*	void error(char* error_text)
 		{
 			printf("Run-time error in Matrix::");
@@ -148,11 +162,19 @@ public:
 			printf("Exiting to system...\n");
 			exit(13);
 		}*/
-	/*Copy constructor*/	Matrix (const Matrix<T> &mat)
-	/*	Copy constructor for the following cases:
-			Matrix mat2(mat);
-			Matrix mat2=mat;
-		and when Matrix is returned from a function	*/
+	
+	/*
+	Copy constructor.
+	
+	For the following cases::
+	
+		Matrix mat2(mat);
+		Matrix mat2=mat;
+		
+	and when Matrix is returned from a function
+	*/
+	Matrix (const Matrix<T> &mat)
+	/*	Copy constructor 	*/
 	{
 		initialize (mat.protected_nrows, mat.protected_ncols);
 		int i;
@@ -160,7 +182,9 @@ public:
 			array[i] = mat.array[i];
 		}
 	}
-	/*Assignment operator*/	Matrix<T>& operator= (const Matrix<T>& mat) {
+	
+	/*Assignment operator*/
+	Matrix<T>& operator= (const Matrix<T>& mat) {
 		//if(this==mat)return *this;
 		resize (mat.nrows(), mat.ncols() );
 		int i;
@@ -169,8 +193,10 @@ public:
 		}
 		return *this;
 	}
+	
 #ifdef _MYUTILS_DEBUG
-	/*DEBUG Subscript operator*/inline safeArray< T > operator[] (int pos) {
+	/*DEBUG Subscript operator*/
+	inline safeArray< T > operator[] (int pos) {
 		if (pos < 0) {
 			error ("Matrix::operator[](int row): row<0");
 		}
@@ -181,7 +207,8 @@ public:
 		return safeArray< T > (element[pos], 0, protected_ncols);
 	};
 #else
-	/*Subscript operator*/inline T* operator[] (int pos) {
+	/*Subscript operator*/
+	inline T* operator[] (int pos) {
 		return element[pos];
 	};
 #endif
@@ -200,6 +227,7 @@ public:
 				}
 		return result;
 	}
+	
 	/*apply a function to every element of the matrix*/
 	Matrix<T> map (T (* f) (T) ) {
 		Matrix<T> result (protected_nrows, protected_ncols);

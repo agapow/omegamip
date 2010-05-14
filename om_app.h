@@ -13,6 +13,7 @@
 
 #include "myutils.h"
 #include "lotri_matrix.h"
+#include "obsmatrix.h"
 #include <string>
 #include <map>
 #include <vector>
@@ -27,18 +28,6 @@ using namespace std;
 // INTERFACE
 
 /*
-The observation matrix associated with an omega block.
-*/
-class oMatrix {
-public:
-	LowerTriangularMatrix< Vector<double> > *gamma;	/* probability of observing pair (i,j) for k haplotypes */
-	LowerTriangularMatrix< Vector<double> > *gamma2;/* probability of observing pair (i,j) for k haplotypes under indel model */
-	Matrix<double> R;								/* eigenvectors for the mutation rate matrix */
-	Vector<double> lambda;							/* eigenvalues for the mutation rate matrix */
-	double mu, kappa, omega;						/* parameters of the mutation rate matrix */
-};
-
-/*
 An omega block.
 
 Defines the continguous sites that share the same omega.
@@ -47,7 +36,7 @@ class oBlock {
 public:
 	int start, end;
 	oBlock *_5prime, *_3prime;
-	oMatrix *oMat;
+	ObsMatrix *oMat;
 };
 
 /*
@@ -176,15 +165,15 @@ public:	/* Member variables */
 	int n;							// number of haplotypes
 	int L;							// length (in codons) of haplotypes
 	int norders;					// number of orderings for PAC likelihood
-	Vector<double> pi;				// equilibrium frequencies of the codons
+	Vector<double> pi;			// equilibrium frequencies of the codons
 	int niter;						// total number of steps in the MCMC
 
 	/* Storage */
-	Random *ran;					// pointer to random number generator
+	Random *ran;					   // pointer to random number generator
 	map<char, int> baseToInt;		// converts TUCAG- to 112345
 	map<int, char> intToBase;		// converts 012345 to NTCAG-
 
-	DNA dna;						// an internal copy of the haplotypes
+	DNA dna;						      // an internal copy of the haplotypes
 	Vector< Vector<int> > codon;	// an internal conversion of haplotypes from nucleotides into codons
 	Matrix< Vector<int>* > H;		// use this to access haplotypes *(H[ordering][hap])
 
@@ -192,34 +181,34 @@ public:	/* Member variables */
 	Matrix<double> pamlWork;		// workspace for paml's diagonalization routine
 	Vector<oBlock> _block;			// each position has a potential _block
 	Vector<oBlock*> block;			// for each position points to the active _block
-	Vector<oMatrix*> oMatTemp;		// storage space for rate matrices for proposed moves
+	Vector<ObsMatrix*> oMatTemp;		// storage space for rate matrices for proposed moves
 	Vector<rBlock> _rblock;			// each inter-position has a potential _rblock
 	Vector<rBlock*> rblock;			// for each inter-position points to the active _rblock
 
 	int nblocks;					// current number of omega blocks
 	int nrblocks;					// current number of recombination blocks
 	int alphaMargin;				// stores the 5'-most position at which alpha is not up to date
-	int betaMargin;					// stores the 3'-most position at which  beta is not up to date
+	int betaMargin;				// stores the 3'-most position at which  beta is not up to date
 	double ****alpha;				// storage for the forward algorithm
 	double ****beta;				// storage for the backward algorithm
-//	Vector<double> rho;				// recombination map (set to size L-1)
-	Vector<double> PAC;				// storage for the PAC likelihoods (set to size norders)
+//	Vector<double> rho;			// recombination map (set to size L-1)
+	Vector<double> PAC;			// storage for the PAC likelihoods (set to size norders)
 
-	Vector<bool> indel;				// indicates that the indel model is to be used at that site
+	Vector<bool> indel;			// indicates that the indel model is to be used at that site
 	int maxCodon;					// 61 if no indels, 62 otherwise
-	double indelLambda;				// current value of the indel rate parameter
+	double indelLambda;			// current value of the indel rate parameter
 
 	int iter;						// current step in the MCMC
-	double oldLikelihood;			// likelihood of the last accepted move in the MCMC chain
-	oEventStart eventStart;			// records the initial state of the MCMC
-	Vector<oEvent> event;			// records the accepted and rejected changes in the MCMC
-	double memTime;					// records the time taken for memory allocation (in seconds)
+	double oldLikelihood;		// likelihood of the last accepted move in the MCMC chain
+	oEventStart eventStart;		// records the initial state of the MCMC
+	Vector<oEvent> event;		// records the accepted and rejected changes in the MCMC
+	double memTime;				// records the time taken for memory allocation (in seconds)
 	double compTime;				// records the time taken for the MCMC chain (in minutes)
 
 	/* Output */
 	string datafile;				// filename for encoded data output file
-	string outfile;					// filename for text output file
-	Vector<int> field;				// stores the variables to output to a text file
+	string outfile;				// filename for text output file
+	Vector<int> field;			// stores the variables to output to a text file
 	int thinning;					// stores the thinning interval for the text file
 
 	/* Misc */
@@ -281,7 +270,7 @@ public:	/* Member functions */
 	/*   Likelihood routines   */		/* likelihood.cpp */
 	/***************************/
 
-	omegaMap& diagonalizeMatrix (oMatrix &oM, const double mu, const double kappa, const double omega);
+	omegaMap& diagonalizeMatrix (ObsMatrix &oM, const double mu, const double kappa, const double omega);
 	omegaMap& buildMatrixA (Matrix<double> &A, const double mu, const double kappa, const double omega);
 	double mutProb (int site, int nhaps, int i, int j);		/* it is assumed that i<=j */
 	omegaMap& forward (int _5prime, int _3prime);			/* updates alpha from _5prime to _3prime inclusive */

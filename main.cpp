@@ -54,11 +54,11 @@ int main (int argc, char* argv[]) {
 #ifdef MPI_ENABLED
 	MPI_Barrier(MPI_COMM_WORLD);
 	MPI_Finalize();
+	
 #	endif
 
-	MSG ("Really finished.");
-	PRINTVAR(proc_id);
-	
+
+	//MSG("at end of prog");
 	return 0;
 }
 

@@ -15,35 +15,62 @@ namespace myutils {
 template <typename T>
 class Vector {
 public:
-	/*Preserve public access for back-compatibility*/
-	T *element;
+	/* Preserve public access for back-compatibility */
+	// PLUG
+	T* element;
+	
+	/// On destruction, should I delete contents as well?
+	bool control_contents;
 
 protected:
 	int protected_size;
 	int initialized;
 
 public:
-	/*Default constructor*/
+	/* Default constructor */
 	Vector() {
 		initialized = 0;
 		initialize (0);
 	}
-	/*Constructor*/			Vector (int size) {
+	
+	/* Constructor */
+	Vector (int size) {
 		initialize (size);
 	}
-	/*Constructor*/			Vector (int size, T value) {
+	
+	/* Constructor */
+	Vector (int size, T value) {
 		initialize (size);
-		int i;
-		for (i = 0; i < size; i++) {
+		for (int i = 0; i < size; i++) {
 			element[i] = value;
 		}
 	}
-	/*Destructor*/			~Vector() {
+	
+	/* Destructor */
+	~Vector() {
 		if (protected_size > 0) {
-			delete[] element;
+			if (element) {
+				delete[] element;
+			}
 		}
 	}
+	
+	/*
+	Delete all contained objects.
+	
+	Should only do this if the container "owns" them and if it is a "deletable"
+	object, i.e. a pointer. 
+	*/
+	void deleteContents () {
+		for (int i = 0; i < size; i++) {
+			delete element[i];
+		}
+	}
+	
 	Vector<T>& initialize (int size) {
+		control_contents = false;
+		element = NULL;
+		// NOTE: this is the problem line
 		element = new T[size];
 		if (!element) {
 			error ("allocation failure in Vector::initialize()");
@@ -52,7 +79,8 @@ public:
 		initialized = 1;
 		return *this;
 	}
-	/*All current data is lost when the Matrix is resized*/
+	
+	/* All current data is lost when the Matrix is resized */
 	Vector<T>& resize (int size) {
 		if (!initialized) {
 			return initialize (size);
@@ -70,12 +98,15 @@ public:
 		protected_size = size;
 		return *this;
 	}
+
 	int size() {
 		return protected_size;
 	}
+	
 	int size() const {
 		return protected_size;
 	}
+	
 	/*	void error(char* error_text)
 		{
 			printf("Run-time error in Vector::");
@@ -83,11 +114,15 @@ public:
 			printf("Exiting to system...\n");
 			exit(13);
 		}*/
-	/*Copy constructor*/	Vector (const Vector<T> &vec)
-	/*	Copy constructor for the following cases:
-			Vector vec2(vec);
-			Vector vec2=vec;
-		and when Vector is returned from a function	*/
+	
+	/*Copy constructor*/
+	Vector (const Vector<T> &vec)
+	/*
+	Copy constructor for the following cases:
+		Vector vec2(vec);
+		Vector vec2=vec;
+	and when Vector is returned from a function.
+	*/
 	{
 		initialize (vec.protected_size);
 		int i;
@@ -95,7 +130,9 @@ public:
 			element[i] = vec.element[i];
 		}
 	}
-	/*Assignment operator*/	Vector<T>& operator= (const Vector<T>& vec) {
+	
+	/*Assignment operator*/
+	Vector<T>& operator= (const Vector<T>& vec) {
 		resize (vec.size() );
 		int i;
 		for (i = 0; i < protected_size; i++) {
@@ -103,12 +140,16 @@ public:
 		}
 		return *this;
 	}
+	
 #ifdef _VECTOR_
-	/*Copy constructor*/	Vector (const std::vector<T> &vec)
-	/*	Copy constructor for the following cases:
-			Vector vec2(vec);
-			Vector vec2=vec;
-		and when Vector is returned from a function	*/
+	/*Copy constructor*/
+	Vector (const std::vector<T> &vec)
+	/*
+	Copy constructor for the following cases:
+		Vector vec2(vec);
+		Vector vec2=vec;
+	and when Vector is returned from a function
+	*/
 	{
 		initialize (vec.size() );
 		int i;
@@ -116,7 +157,9 @@ public:
 			element[i] = vec[i];
 		}
 	}
-	/*Assignment operator*/	Vector<T>& operator= (const std::vector<T>& vec) {
+	
+	/*Assignment operator*/
+	Vector<T>& operator= (const std::vector<T>& vec) {
 		resize (vec.size() );
 		int i;
 		for (i = 0; i < protected_size; i++) {
@@ -126,7 +169,8 @@ public:
 	}
 #endif
 #ifdef _MYUTILS_DEBUG
-	/*Subscript operator*/inline T& operator[] (int pos) {
+	/*Subscript operator*/
+	inline T& operator[] (int pos) {
 		if (pos < 0) {
 			error ("Vector::operator[](int pos): pos<0");
 		}
@@ -136,10 +180,12 @@ public:
 		return element[pos];
 	};
 #else
-	/*Subscript operator*/inline T& operator[] (int pos) {
+	/*Subscript operator*/
+	inline T& operator[] (int pos) {
 		return element[pos];
 	};
 #endif
+
 };
 };
 
