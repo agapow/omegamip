@@ -55,23 +55,23 @@ public:
 		}
 	}
 	
-	/*
-	Delete all contained objects.
-	
-	Should only do this if the container "owns" them and if it is a "deletable"
-	object, i.e. a pointer. 
-	*/
-	void deleteContents () {
-		for (int i = 0; i < size; i++) {
-			delete element[i];
-		}
-	}
+	///*
+	//Delete all contained objects.
+	//
+	//Should only do this if the container "owns" them and if it is a "deletable"
+	//object, i.e. a pointer. 
+	//*/
+	//void deleteContents () {
+	//	for (int i = 0; i < size; i++) {
+	//		delete element[i];
+	//	}
+	//}
 	
 	Vector<T>& initialize (int size) {
 		control_contents = false;
 		element = NULL;
 		// NOTE: this is the problem line
-		element = new T[size];
+		if (size != 0) { element = new T[size]; }
 		if (!element) {
 			error ("allocation failure in Vector::initialize()");
 		}

@@ -12,8 +12,6 @@ PROFILE = 0
 
 # set libraries
 LIBS += -lm -lstdc++
-LDFLAGS = $(CXXFLAGS)
-LDLIBS = $(LIBS)
 
 # set flags
 CXXFLAGS = -O3
@@ -27,6 +25,7 @@ endif
 ifneq ($(MPI),0)
 	CXXFLAGS += -DMPI_ENABLED
 	CXX = mpic++
+	LIBS += -lmpi
 else
 	CXX = gcc
 endif
